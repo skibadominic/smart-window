@@ -15,6 +15,9 @@ Servo meuServo;
 
 const int pinoSensor = 14;
 const int pinoServo = 13;
+const int pinoLedWifi = 27;
+const int pinoLedVermelho = 25;
+const int pinoLedVerde = 32;
 int janelaAberta = 1;
 int movendo = 0;
 
@@ -54,12 +57,20 @@ void acionarMotor(int fechar) {
 
   movendo = 1;
   if (fechar) {
+    digitalWrite(pinoLedVerde, LOW);
     meuServo.write(180);
-    delay(4000);
+    for (int i = 0; i < 8; i++) {
+      digitalWrite(pinoLedVermelho, !digitalRead(pinoLedVermelho));
+      delay(500);
+    }
+
     meuServo.write(90);
+    digitalWrite(pinoLedVermelho, HIGH);
     janelaAberta = 0;
     registrarEvento("Fechamento Automático (Chuva)");
   } else {
+    digitalWrite(pinoLedVermelho, LOW);
+    digitalWrite(pinoLedVerde, HIGH);
     meuServo.write(0);
     delay(4000);
     meuServo.write(90);
@@ -75,11 +86,22 @@ void setup() {
   meuServo.setPeriodHertz(50);
   meuServo.attach(pinoServo, 500, 2400);
   meuServo.write(90);
+  
+  pinMode(pinoLedWifi, OUTPUT);
+  pinMode(pinoLedVermelho, OUTPUT);
+  pinMode(pinoLedVerde, OUTPUT);
+
+  digitalWrite(pinoLedVerde, HIGH);
+  digitalWrite(pinoLedVermelho, LOW);
 
   WiFi.begin(ssid, password);
-  while (WiFi.status() != WL_CONNECTED) {
+  while (WiFi.status() != WL_CONNECTED) 
+  {
+    digitalWrite(pinoLedWifi, !
+  digitalRead(pinoLedWifi));
     delay(500);
   }
+  digitalWrite(pinoLedWifi, HIGH);
 
   configTime(-3 * 3600, 0, "pool.ntp.org", "time.nist.gov");
 
