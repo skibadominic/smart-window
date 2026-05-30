@@ -7,17 +7,21 @@
 #include "time.h"
 #include "interface.h"
 
-const char* ssid = "GRADUATION-07";
-const char* password = "ZZyQvdfQ";
+const char* ssid = "dominic";
+const char* password = "Dom2303!";
 
 WebServer server(80);
 Servo meuServo;
 
-const int pinoSensor = 14;
+const int pinoSensor = 34;
 const int pinoServo = 13;
-const int pinoLedWifi = 27;
-const int pinoLedVermelho = 25;
+const int pinoLedWifi = 14;
+const int pinoLedVermelho = 27;
 const int pinoLedVerde = 32;
+
+const int pinoFimCursoFechada = 25;
+const int pinoFimCursoAberta = 26;
+
 int janelaAberta = 1;
 int movendo = 0;
 
@@ -56,12 +60,18 @@ void acionarMotor(int fechar) {
   if (movendo) return;
 
   movendo = 1;
+  int contador = 0;
+
   if (fechar) {
     digitalWrite(pinoLedVerde, LOW);
     meuServo.write(180);
-    for (int i = 0; i < 8; i++) {
-      digitalWrite(pinoLedVermelho, !digitalRead(pinoLedVermelho));
-      delay(500);
+    
+    while (digitalRead(pinoFimCursoFechada) == HIGH) {
+      if (contador % 50 == 0) {
+        digitalWrite(pinoLedVermelho, !digitalRead(pinoLedVermelho));
+      }
+      delay(10);
+      contador++;
     }
 
     meuServo.write(90);
@@ -70,10 +80,18 @@ void acionarMotor(int fechar) {
     registrarEvento("Fechamento Automático (Chuva)");
   } else {
     digitalWrite(pinoLedVermelho, LOW);
-    digitalWrite(pinoLedVerde, HIGH);
-    meuServo.write(0);
-    delay(4000);
+    meuServo.write(10);
+
+    while (digitalRead(pinoFimCursoAberta) == HIGH) {
+      if (contador % 50 == 0) {
+        digitalWrite(pinoLedVerde, !digitalRead(pinoLedVerde));
+      }
+      delay(10);
+      contador++;
+    }
+    
     meuServo.write(90);
+    digitalWrite(pinoLedVerde, HIGH);
     janelaAberta = 1;
     registrarEvento("Abertura Automática (Seco)");
   }
@@ -82,7 +100,11 @@ void acionarMotor(int fechar) {
 
 void setup() {
   Serial.begin(115200);
+  
   pinMode(pinoSensor, INPUT);
+  pinMode(pinoFimCursoFechada, INPUT_PULLUP);
+  pinMode(pinoFimCursoAberta, INPUT_PULLUP);
+  
   meuServo.setPeriodHertz(50);
   meuServo.attach(pinoServo, 500, 2400);
   meuServo.write(90);
@@ -97,11 +119,14 @@ void setup() {
   WiFi.begin(ssid, password);
   while (WiFi.status() != WL_CONNECTED) 
   {
-    digitalWrite(pinoLedWifi, !
-  digitalRead(pinoLedWifi));
+    digitalWrite(pinoLedWifi, !digitalRead(pinoLedWifi));
     delay(500);
   }
   digitalWrite(pinoLedWifi, HIGH);
+
+  Serial.println();
+  Serial.print("IP do Web Server: ");
+  Serial.println(WiFi.localIP());
 
   configTime(-3 * 3600, 0, "pool.ntp.org", "time.nist.gov");
 
