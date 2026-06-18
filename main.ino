@@ -3,12 +3,16 @@
 #include <ESP32Servo.h>
 #include <ESPmDNS.h>
 #include <WiFiUdp.h>
-#include <ArduinoOTA.h>
+#include <WiFiClientSecure.h>
+#include <HTTPClient.h>
 #include "time.h"
 #include "interface.h"
 
-const char* ssid = "dominic";
-const char* password = "Dom2303!";
+const char* ssid = "COLOQUE O NOME DA REDE AQUI";
+const char* password = "SENHA DA REDE AQUI";
+
+const char* tokenTelegram = "TOKEN DO SEU BOT DO TELEGRAM";
+const char* chatIdTelegram = "SEU ID DO TELEGRAM";
 
 WebServer server(80);
 Servo meuServo;
@@ -29,6 +33,30 @@ int movendo = 0;
 String historico[MAX_HISTORY];
 int indiceHistorico = 0;
 int totalEventos = 0;
+
+void enviarNotificacao(String mensagem) {
+  if (WiFi.status() == WL_CONNECTED) {
+    WiFiClientSecure client;
+    client.setInsecure();
+    HTTPClient http;
+    
+    mensagem.replace(" ", "%20");
+    
+    String url = "https://api.telegram.org/bot" + String(tokenTelegram) + "/sendMessage?chat_id=" + String(chatIdTelegram) + "&text=" + mensagem;
+    
+    http.begin(client, url);
+    int codigoHTTP = http.GET();
+    
+    if (codigoHTTP > 0) {
+      Serial.print("Resposta HTTP Telegram: ");
+      Serial.println(codigoHTTP);
+    } else {
+      Serial.print("Erro HTTP Telegram: ");
+      Serial.println(http.errorToString(codigoHTTP).c_str());
+    }
+    http.end();
+  }
+}
 
 void registrarEvento(String acao) {
   struct tm timeinfo;
@@ -60,38 +88,30 @@ void acionarMotor(int fechar) {
   if (movendo) return;
 
   movendo = 1;
-  int contador = 0;
 
   if (fechar) {
     digitalWrite(pinoLedVerde, LOW);
-    meuServo.write(180);
+    digitalWrite(pinoLedVermelho, HIGH);
+    meuServo.write(110);
     
     while (digitalRead(pinoFimCursoFechada) == HIGH) {
-      if (contador % 50 == 0) {
-        digitalWrite(pinoLedVermelho, !digitalRead(pinoLedVermelho));
-      }
       delay(10);
-      contador++;
     }
 
     meuServo.write(90);
-    digitalWrite(pinoLedVermelho, HIGH);
     janelaAberta = 0;
     registrarEvento("Fechamento Automático (Chuva)");
+    enviarNotificacao("Alerta: Chuva detectada! A janela foi fechada automaticamente.");
   } else {
     digitalWrite(pinoLedVermelho, LOW);
-    meuServo.write(10);
+    digitalWrite(pinoLedVerde, HIGH);
+    meuServo.write(70);
 
     while (digitalRead(pinoFimCursoAberta) == HIGH) {
-      if (contador % 50 == 0) {
-        digitalWrite(pinoLedVerde, !digitalRead(pinoLedVerde));
-      }
       delay(10);
-      contador++;
     }
     
     meuServo.write(90);
-    digitalWrite(pinoLedVerde, HIGH);
     janelaAberta = 1;
     registrarEvento("Abertura Automática (Seco)");
   }
@@ -130,9 +150,6 @@ void setup() {
 
   configTime(-3 * 3600, 0, "pool.ntp.org", "time.nist.gov");
 
-  ArduinoOTA.setHostname("SmartWindow");
-  ArduinoOTA.begin();
-
   server.on("/", []() {
     server.send(200, "text/html", INDEX_HTML);
   });
@@ -157,7 +174,6 @@ void setup() {
 }
 
 void loop() {
-  ArduinoOTA.handle();
   server.handleClient();
 
   if (!movendo) {
